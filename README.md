@@ -240,7 +240,181 @@ Ou seja, somente um consumer ligado a uma fila com a routing key correspondente 
 Se a routing key não for idêntica, a mensagem não será roteada para aquele consumer.
 Ela jamais cairá em uma fila que não esteja corretamente configurada.
 
-Esse comportamento muda quando falamos da EXCHANGE TOPIC, onde podemos usar curingas (* e #) para ampliar o alcance do roteamento.
+Esse comportamento muda quando falamos da EXCHANGE TOPIC, onde podemos usar coringas (* e #) para ampliar o alcance do roteamento.
 
 Rode o projeto e veja como funciona.
  
+# EXCHANGE TOPIC
+
+Classes envolvidas :
+
+```
+    RabbitConfig.java
+    RabbitMQAutoDeclareConfig.java
+    RabbitMQConstants.java
+    PedidoController.java
+    PedidoService.java
+    PedidoProducer.java
+    DevolucaoAvariaConsumer.java
+    DevolucaoDesistenciaConsumer
+    DevolucaoErradaConsumer
+```
+
+Criando nossa configuração no RabbitConfig da exchange topic:
+
+```java
+@Configuration
+public class RabbitConfig {
+    
+    // demais configurações
+    
+    /**
+     * Configurando topic Exchange */
+
+    @Bean
+    public Queue devolucaoAvariaQueue(){
+        return QueueBuilder.durable(QUEUE_DEVOLUCOES_AVARIA).build();
+    }
+
+    @Bean
+    public Queue devolucaoErradaQueue(){
+        return QueueBuilder.durable(QUEUE_DEVOLUCOES_ERRADA).build();
+    }
+
+    @Bean
+    public Queue devolucaoDesistenciaQueue(){
+        return QueueBuilder.durable(QUEUE_DEVOLUCOES_DESISTENCIA).build();
+
+    }
+    
+    @Bean
+    public TopicExchange devolucaoTopicExchange(){
+        return ExchangeBuilder.topicExchange(EXCHANGE_DEVOLUCOES)
+                .durable(true)
+                .build();
+
+    }
+
+    @Bean
+    public Binding devolucaoAvariaBinding(){
+        return BindingBuilder
+                .bind(devolucaoAvariaQueue())
+                .to(devolucaoTopicExchange())
+                .with(BINDING_DEVOLUCOES);
+    }
+
+    @Bean
+    public Binding devolucaoDesistenciaBinding(){
+        return BindingBuilder
+                .bind(devolucaoDesistenciaQueue())
+                .to(devolucaoTopicExchange())
+                .with(BINDING_DEVOLUCOES);
+    }
+
+    @Bean
+    public Binding devolucaoErradaBinding(){
+        return BindingBuilder
+                .bind(devolucaoErradaQueue())
+                .to(devolucaoTopicExchange())
+                .with(BINDING_DEVOLUCOES);
+    }
+}
+
+```
+Então acima configuramos  nossa exchange como topic e nos bindings ambos estão fazendo com a constante
+BINDING_DEVOLUCOES que tem o valor:
+```java
+public static final String BINDING_DEVOLUCOES = "devolucao.#";
+```
+## O que isso significa ?
+
+Quando utilizamos o caractere # em um topic exchange, estamos indicando que qualquer sequência de palavras após devolucao
+será aceita. Ou seja, qualquer consumer cuja routing key comece com devolucao. e tenha qualquer valor depois disso irá receber a mensagem.
+
+Exemplos :
+- devolucao
+- devolucao.produto
+- devolucao.produto.defeituoso
+- devolucao.cliente.atraso.na.entrega
+
+Com devolucao.*, o consumer só recebe mensagens cuja routing key tenha exatamente uma palavra após devolucao.
+
+Exemplos:
+- devolucao.produto
+- devolucao.cliente
+- devolucao.pedido
+
+No nosso exemplo usamos .# logo :
+
+```java
+  public static final String QUEUE_DEVOLUCOES_AVARIA ="devolucao.avaria.queue";
+  public static final String QUEUE_DEVOLUCOES_ERRADA ="devolucao.errada.queue";
+  public static final String QUEUE_DEVOLUCOES_DESISTENCIA ="devolucao.desistencia.queue";
+```
+
+Entao o fluxo fica dessa forma :
+
+PedidoController :
+
+```java
+
+@PostMapping("/devolucao")
+public ResponseEntity<String> criarSolicitacaoDeDevolucao(@RequestBody String mensagem) {
+        pedidoService.criarPedidoDeDevolucao(mensagem);
+        return ResponseEntity.ok("Pedido enviado com sucesso: " + mensagem);
+}
+```
+PedidoService:
+```java
+     public void criarPedidoDeDevolucao(String mensagem) {
+        pedidoProducer.criarPedidoDeDevolucao(mensagem);
+     }
+```
+PedidoProducer:
+```java
+        public void criarPedidoDeDevolucao(String mensagem){
+        try{
+            logger.info("Enviando mensagem para a exchange '{}' com routing key '{}'",
+            EXCHANGE_DEVOLUCOES, BINDING_DEVOLUCOES);
+            rabbitTemplate.convertAndSend(EXCHANGE_DEVOLUCOES, BINDING_DEVOLUCOES, mensagem);
+            logger.info("Mensagem enviada com sucesso: {}", mensagem);
+        } catch (Exception e) {
+            logger.error("Erro ao enviar mensagem", e);
+            throw new RuntimeException("Falha ao enviar mensagem", e);
+        }
+```
+e os 3 consumers:
+```java
+
+@Component
+public class DevolucaoAvariaConsumer {
+
+    @RabbitListener(queues = QUEUE_DEVOLUCOES_AVARIA)
+    public void receberMensagem(String mensagem){
+        System.out.println("mensagem recebida de devolucao por avaria: " + mensagem);
+
+    }
+}
+
+@Component
+public class DevolucaoDesistenciaConsumer {
+
+    @RabbitListener(queues = QUEUE_DEVOLUCOES_DESISTENCIA)
+    public void receberMensagem(String mensagem){
+        System.out.println("mensagem recebida de devolucao por desistencia: " + mensagem);
+
+    }
+}
+
+
+@Component
+public class DevolucaoErradaConsumer {
+
+    @RabbitListener(queues = QUEUE_DEVOLUCOES_ERRADA)
+    public void receberMensagem(String mensagem){
+        System.out.println("mensagem recebida de devolucao por erro : " + mensagem);
+
+    }
+}
+
+```
