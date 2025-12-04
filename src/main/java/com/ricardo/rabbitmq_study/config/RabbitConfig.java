@@ -88,5 +88,43 @@ public class RabbitConfig {
                 .with(BINDING_DEVOLUCOES);
     }
 
+    /** configurando fanout exchange */
+
+    @Bean
+    public FanoutExchange fanoutExchange(){
+        return  ExchangeBuilder.fanoutExchange(EXCHANGE_PRODUTOS).build();
+    }
+
+    @Bean
+    public Queue produtoLojaAQueue(){
+        return QueueBuilder.durable(QUEUE_LOJA_A).build();
+    }
+
+    @Bean
+    public Queue produtoLojaBQueue(){
+        return QueueBuilder.durable(QUEUE_LOJA_B).build();
+    }
+
+    @Bean
+    public Queue produtoLojaCQueue(){
+        return QueueBuilder.durable(QUEUE_LOJA_C).build();
+    }
+
+    @Bean
+    public Binding lojaABinding(){
+        return BindingBuilder.bind(produtoLojaAQueue()).to(fanoutExchange());
+    }
+
+    @Bean
+    public Binding lojaBBinding(){
+        return BindingBuilder.bind(produtoLojaBQueue()).to(fanoutExchange());
+    }
+
+    @Bean
+    public Binding lojaCBinding(){
+        return BindingBuilder.bind(produtoLojaCQueue()).to(fanoutExchange());
+    }
+
+
 
 }

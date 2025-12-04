@@ -29,5 +29,11 @@ public class PedidoController {
         pedidoService.criarPedidoDeDevolucao(mensagem);
         return ResponseEntity.ok("Pedido enviado com sucesso: " + mensagem);
     }
+
+    @PostMapping("/produto-novo")
+    public ResponseEntity<String> enviarNotificacaoDeProdutoNovo(@RequestBody String message){
+        pedidoService.notificarLojas(message);
+        return ResponseEntity.ok("notificacao enviada com sucesso para todas as lojas: " + message);
+    }
 }
 

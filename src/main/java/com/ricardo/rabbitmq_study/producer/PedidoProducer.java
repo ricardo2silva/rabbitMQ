@@ -42,4 +42,18 @@ public class PedidoProducer {
             throw new RuntimeException("Falha ao enviar mensagem", e);
         }
     }
+
+    public void notificarLojas(String mensagem){
+        try{
+            logger.info("Enviando mensagem para a exchange '{}'",EXCHANGE_PRODUTOS);
+
+            rabbitTemplate.convertAndSend(EXCHANGE_PRODUTOS,"", mensagem);
+            logger.info("Mensagem enviada com sucesso: {}", mensagem);
+        } catch (Exception e) {
+            logger.error("Erro ao enviar mensagem", e);
+            throw new RuntimeException("Falha ao enviar mensagem", e);
+        }
+    }
+
+
 }

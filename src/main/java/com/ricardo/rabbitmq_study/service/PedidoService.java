@@ -24,6 +24,8 @@ public class PedidoService {
         pedidoProducer.criarPedidoDeDevolucao(mensagem);
     }
 
-
+    public void notificarLojas(String mensagem) {
+        pedidoProducer.notificarLojas(mensagem);
+    }
 }
 

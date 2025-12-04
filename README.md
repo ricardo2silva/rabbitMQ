@@ -256,8 +256,8 @@ Classes envolvidas :
     PedidoService.java
     PedidoProducer.java
     DevolucaoAvariaConsumer.java
-    DevolucaoDesistenciaConsumer
-    DevolucaoErradaConsumer
+    DevolucaoDesistenciaConsumer.java
+    DevolucaoErradaConsumer.java
 ```
 
 Criando nossa configuração no RabbitConfig da exchange topic:
@@ -417,4 +417,85 @@ public class DevolucaoErradaConsumer {
     }
 }
 
+```
+# EXCHANGE FANOUT
+Classes envolvidas:
+```
+    RabbitConfig.java
+    RabbitMQAutoDeclareConfig.java
+    RabbitMQConstants.java
+    PedidoController.java
+    PedidoService.java
+    PedidoProducer.java
+    LojaAConsumer.java
+    LojaBConsumer.java
+    LojaCConsumer.java
+```
+A fanout exchange é utilizada quando precisamos enviar uma mensagem para todas as filas vinculadas a ela, funcionando como um broadcast. Ou seja, qualquer fila ligada a essa exchange receberá exatamente a mesma mensagem.
+
+Um uso comum desse padrão é o envio de notificações gerais, onde todos os consumidores precisam ser informados sobre determinado evento — como registros de log, alertas ou atualizações globais.
+
+No nosso caso, utilizamos a fanout exchange para distribuir a informação de um novo produto para todas as lojas, garantindo que cada uma receba a mesma comunicação ao mesmo tempo.
+Entao o fluxo fica dessa forma:
+
+PedidoController:
+```java
+    @PostMapping("/produto-novo")
+    public ResponseEntity<String> enviarNotificacaoDeProdutoNovo(@RequestBody String message){
+        pedidoService.notificarLojas(message);
+        return ResponseEntity.ok("notificacao enviada com sucesso para todas as lojas: " + message);
+    }
+
+```
+PedidoService:
+
+```java
+    public void notificarLojas(String mensagem) {
+        pedidoProducer.notificarLojas(mensagem);
+    }
+```
+
+PedidoProducer:
+```java
+    public void notificarLojas(String mensagem){
+        try{
+            logger.info("Enviando mensagem para a exchange '{}'",EXCHANGE_PRODUTOS);
+
+            rabbitTemplate.convertAndSend(EXCHANGE_PRODUTOS,"", mensagem);
+            logger.info("Mensagem enviada com sucesso: {}", mensagem);
+        } catch (Exception e) {
+            logger.error("Erro ao enviar mensagem", e);
+            throw new RuntimeException("Falha ao enviar mensagem", e);
+        }
+    }
+
+```
+
+e os 3 consumers :
+```java
+@Component
+public class LojaAConsumer {
+
+    @RabbitListener(queues = QUEUE_LOJA_A)
+    public void receberNotificacaoProdutoNovo(String mensagem){
+        System.out.println("Loja A recebendo mensagem: " + mensagem);
+    }
+}
+
+@Component
+public class LojaBConsumer {
+
+    @RabbitListener(queues = QUEUE_LOJA_B)
+    public void receberNotificacaoProdutoNovo(String mensagem){
+        System.out.println("Loja B recebendo mensagem: " + mensagem);
+    }
+}
+@Component
+public class LojaCConsumer {
+
+    @RabbitListener(queues = QUEUE_LOJA_C)
+    public void receberNotificacaoProdutoNovo(String mensagem){
+        System.out.println("Loja C recebendo mensagem: " + mensagem);
+    }
+}
 ```
